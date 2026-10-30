@@ -1,4 +1,6 @@
 {
+  "fml.menu.mods.info.description.quality_food": "Quality Food（作者 Cadentem）的非官方分支，原作者不提供支持，问题请反馈到 https://github.com/Akanyi/moFoodQuality/issues\n为食物和食物相关材料（例如作物）添加品质",
+
   "potion.withProbability": "%s (%s)",
 
   "quality_food.jade": "品质: %s",

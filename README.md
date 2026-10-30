@@ -1,3 +1,13 @@
+# moFoodQuality
+
+> [!IMPORTANT]
+> **This is an unofficial fork** of [Quality Food](https://github.com/SiverDX/quality_food) by Cadentem, maintained by LANS. It is not made or supported by the original author - please report issues for this version at [Akanyi/moFoodQuality](https://github.com/Akanyi/moFoodQuality/issues), not on the original repository.
+>
+> **这是一个非官方分支**，基于 Cadentem 的 [Quality Food](https://github.com/SiverDX/quality_food)，由 LANS 维护，原作者不提供支持。此版本的问题请反馈到 [Akanyi/moFoodQuality](https://github.com/Akanyi/moFoodQuality/issues)，不要提交到原仓库。
+
+- The mod id stays `quality_food`, so existing worlds, data packs and configs keep working - it replaces the original mod and cannot be installed together with it
+- Additions compared to the original: [API](#api) for quality types and the material presets (wood, stone, copper, netherite, ender), sequence-based [Levels](#levels) and per-food [Food Qualities](#food-qualities)
+
 # General
 This branch targets Minecraft 26.1.2 with NeoForge and Java 25.
 

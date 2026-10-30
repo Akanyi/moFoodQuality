@@ -1,13 +1,15 @@
 modLoader = "javafml"
 loaderVersion = "${loader_version_range}"
 license = "${mod_license}"
-issueTrackerURL = "https://github.com/SiverDX/quality_food/issues"
+issueTrackerURL = "${mod_url}/issues"
 
 [[mods]]
 modId = "${mod_id}"
 version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
+credits = "${mod_credits}"
+displayURL = "${mod_url}"
 description = '''${mod_description}'''
 
 [[dependencies.${ mod_id }]]

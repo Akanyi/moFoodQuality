@@ -49,8 +49,8 @@ public class QFApiPack {
             return;
         }
 
-        PackLocationInfo location = new PackLocationInfo(ID, Component.literal("Quality Food: API"), PackSource.BUILT_IN, Optional.empty());
-        Pack.Metadata metadata = new Pack.Metadata(Component.literal("Quality types and food quality rules registered through the Quality Food API"), PackCompatibility.COMPATIBLE, FeatureFlagSet.of(), List.of());
+        PackLocationInfo location = new PackLocationInfo(ID, Component.literal("moFoodQuality: API"), PackSource.BUILT_IN, Optional.empty());
+        Pack.Metadata metadata = new Pack.Metadata(Component.literal("Quality types and food quality rules registered through the moFoodQuality API"), PackCompatibility.COMPATIBLE, FeatureFlagSet.of(), List.of());
         Pack pack = new Pack(location, new ResourcesSupplier(), metadata, new PackSelectionConfig(true, Pack.Position.BOTTOM, false));
         event.addRepositorySource(consumer -> consumer.accept(pack));
     }
