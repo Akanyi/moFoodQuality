@@ -1,5 +1,7 @@
 package de.cadentem.quality_food.util;
 
+import de.cadentem.quality_food.api.QualityFoodAPI;
+import de.cadentem.quality_food.api.event.QualityFoodEvent;
 import de.cadentem.quality_food.core.codecs.Quality;
 import de.cadentem.quality_food.core.codecs.QualityType;
 import de.cadentem.quality_food.data.QFEffectTags;
@@ -13,14 +15,14 @@ import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.ItemStack;
-import org.jetbrains.annotations.NotNull;
+import net.minecraft.world.item.component.Consumable;
+import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
+import net.minecraft.world.item.consume_effects.ConsumeEffect;
+import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
 import java.util.ArrayList;
-import net.minecraft.world.item.component.Consumable;
-import net.minecraft.world.item.consume_effects.ConsumeEffect;
-import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
+import java.util.List;
 import java.util.Optional;
 
 public class FoodUtils {
@@ -29,22 +31,40 @@ public class FoodUtils {
             return original;
         }
 
-        Holder<QualityType> holder = QualityUtils.getType(stack);
+        Quality quality = QualityUtils.getQuality(stack);
+        Holder<QualityType> holder = quality.getType();
         QualityType type = holder.value();
 
         if (type == QualityType.NONE) {
             return original;
         }
 
-        FoodProperties.Builder builder = getBuilder(original, type);
-        return builder.build();
+        int nutrition = (int) (original.nutrition() * type.nutritionMultiplier());
+        float originalSaturationModifier = original.nutrition() == 0 ? 0 : (original.saturation() / original.nutrition()) / 2;
+        float saturationModifier = (float) (originalSaturationModifier * type.saturationMultiplier());
+        boolean canAlwaysEat = original.canAlwaysEat();
+
+        QualityFoodEvent.ModifyFoodProperties event = new QualityFoodEvent.ModifyFoodProperties(stack, quality, holder, original, nutrition, saturationModifier, canAlwaysEat);
+        NeoForge.EVENT_BUS.post(event);
+
+        FoodProperties.Builder builder = new FoodProperties.Builder();
+        builder.nutrition(event.getNutrition());
+        builder.saturationModifier(event.getSaturationModifier());
+        if (event.canAlwaysEat()) {
+            builder.alwaysEdible();
+        }
+
+        return QualityFoodAPI.applyFoodPropertiesModifiers(stack, original, builder.build(), quality, holder);
     }
 
     public static @Nullable Consumable handleConsumable(final ItemStack stack, @Nullable final Consumable original) {
         if (original == null || !QualityUtils.hasQuality(stack)) {
             return original;
         }
-        QualityType type = QualityUtils.getType(stack).value();
+
+        Quality quality = QualityUtils.getQuality(stack);
+        Holder<QualityType> holder = quality.getType();
+        QualityType type = holder.value();
         if (type == QualityType.NONE) {
             return original;
         }
@@ -73,7 +93,12 @@ public class FoodUtils {
             }
         }
         getEffects(stack).ifPresent(effects::addAll);
-        return new Consumable(original.consumeSeconds(), original.animation(), original.sound(), original.hasConsumeParticles(), effects);
+
+        QualityFoodEvent.ModifyConsumable event = new QualityFoodEvent.ModifyConsumable(stack, quality, holder, original, original.consumeSeconds(), effects);
+        NeoForge.EVENT_BUS.post(event);
+
+        Consumable computed = new Consumable(event.getConsumeSeconds(), original.animation(), original.sound(), original.hasConsumeParticles(), event.getEffects());
+        return QualityFoodAPI.applyConsumableModifiers(stack, computed, quality, holder);
     }
 
     public static Optional<MobEffectInstance> modifyEffect(final MobEffectInstance instance, final QualityType type) {
@@ -105,7 +130,6 @@ public class FoodUtils {
                 amplifier = amplifier - type.amplifierModifier();
             }
 
-
             if (amplifier >= 0 && duration > 0) {
                 return Optional.of(new MobEffectInstance(effect, duration, amplifier));
             }
@@ -128,19 +152,5 @@ public class FoodUtils {
         }
 
         return Optional.empty();
-    }
-
-    private static @NotNull FoodProperties.Builder getBuilder(@NotNull final FoodProperties original, final QualityType type) {
-        int nutrition = (int) (original.nutrition() * type.nutritionMultiplier());
-        float originalSaturationModifier = (original.saturation() / original.nutrition()) / 2;
-        float saturationModifier = (float) (originalSaturationModifier * type.saturationMultiplier());
-
-        FoodProperties.Builder builder = new FoodProperties.Builder();
-        builder.nutrition(nutrition);
-        builder.saturationModifier(saturationModifier);
-
-        if (original.canAlwaysEat()) builder.alwaysEdible();
-
-        return builder;
     }
 }

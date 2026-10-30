@@ -1,7 +1,11 @@
 package de.cadentem.quality_food.util;
 
+import de.cadentem.quality_food.api.QualityChanceModifier;
+import de.cadentem.quality_food.api.QualityFoodAPI;
+import de.cadentem.quality_food.api.event.QualityApplyEvent;
 import de.cadentem.quality_food.compat.Compat;
 import de.cadentem.quality_food.config.ServerConfig;
+import de.cadentem.quality_food.core.FoodQualityRules;
 import de.cadentem.quality_food.core.Modification;
 import de.cadentem.quality_food.core.codecs.Quality;
 import de.cadentem.quality_food.core.codecs.QualityType;
@@ -9,6 +13,7 @@ import de.cadentem.quality_food.registry.QFComponents;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -18,6 +23,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +32,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
 
 public class QualityUtils {
     private static final RandomSource RANDOM = RandomSource.create();
@@ -59,14 +67,20 @@ public class QualityUtils {
 
         Holder<QualityType> selected = null;
         double averageWeight = totalWeight / validIngredients;
+        Set<Identifier> allowed = FoodQualityRules.getAllowed(stack);
 
         for (Holder<QualityType> type : access.lookupOrThrow(QFComponents.QUALITY_TYPE_REGISTRY).listElements().toList()) {
-            if (selected != null && type.value().level() <= selected.value().level()) {
+            if (selected != null && QualityLevels.get(type) <= QualityLevels.get(selected)) {
+                continue;
+            }
+
+            if (!FoodQualityRules.isAllowed(allowed, type)) {
                 continue;
             }
 
             double chance = type.value().chance() + QualityUtils.calculateChance(type.value(), averageWeight);
             chance = Modification.luck(player).apply(chance);
+            chance = QualityFoodAPI.fireQualityRoll(new QualityChanceModifier.Context(QualityChanceModifier.RollType.CRAFTING, stack, type, player, null, ingredients, averageWeight), chance);
 
             if (chance > 0 && chance >= RANDOM.nextDouble()) {
                 selected = type;
@@ -95,7 +109,7 @@ public class QualityUtils {
             return;
         }
 
-        applyHarvestQuality(context.stack(), context.state(), context.quality(), context.player(), context.farmland(), context.level().registryAccess());
+        applyHarvestQualityInternal(context.stack(), context.state(), context.quality(), context.player(), context.farmland(), context.level().registryAccess(), context);
     }
 
     /**
@@ -103,18 +117,28 @@ public class QualityUtils {
      * @param blockQuality The quality of the harvested block, set to {@link Quality#NONE} if not provided
      */
     public static void applyHarvestQuality(final ItemStack stack, @Nullable final BlockState state, @Nullable Quality blockQuality, @Nullable final Player player, @Nullable final BlockState farmland, final RegistryAccess access) {
+        applyHarvestQualityInternal(stack, state, blockQuality, player, farmland, access, null);
+    }
+
+    private static void applyHarvestQualityInternal(final ItemStack stack, @Nullable final BlockState state, @Nullable Quality blockQuality, @Nullable final Player player, @Nullable final BlockState farmland, final RegistryAccess access, @Nullable final HarvestContext harvestContext) {
         blockQuality = Objects.requireNonNullElse(blockQuality, Quality.NONE);
 
         if (isRelevantCrop(state)) {
             Holder<QualityType> selected = null;
+            double blockWeight = isValidQuality(blockQuality) ? blockQuality.getType().value().weight() : 0;
+            Set<Identifier> allowed = FoodQualityRules.getAllowed(stack);
 
             for (Holder<QualityType> type : access.lookupOrThrow(QFComponents.QUALITY_TYPE_REGISTRY).listElements().toList()) {
-                if (selected != null && type.value().level() <= selected.value().level()) {
+                if (selected != null && QualityLevels.get(type) <= QualityLevels.get(selected)) {
+                    continue;
+                }
+
+                if (!FoodQualityRules.isAllowed(allowed, type)) {
                     continue;
                 }
 
                 // If the crop was player-placed, it should be able to roll for any quality
-                if (blockQuality == Quality.NONE && type.value().level() > ServerConfig.MAX_NATURAL_HARVEST_QUALITY_LEVEL.get()) {
+                if (blockQuality == Quality.NONE && !ServerConfig.isNaturalHarvestQuality(type)) {
                     continue;
                 }
 
@@ -124,12 +148,13 @@ public class QualityUtils {
                     // Weight would be 0, meaning no quality can be calculated
                     chance = type.value().chance();
                 } else {
-                    chance = QualityUtils.calculateChance(type.value(), blockQuality.getType().value().weight());
+                    chance = QualityUtils.calculateChance(type.value(), blockWeight);
                 }
 
                 chance = Modification.harvestOrSeedMultiplier(type, stack).apply(chance);
                 chance = Modification.luck(player).apply(chance);
                 chance = Modification.farmland(state, farmland).apply(chance);
+                chance = QualityFoodAPI.fireQualityRoll(new QualityChanceModifier.Context(QualityChanceModifier.RollType.HARVEST, stack, type, player, harvestContext, null, blockWeight), chance);
 
                 if (chance > 0 && chance >= RANDOM.nextDouble()) {
                     selected = type;
@@ -144,7 +169,7 @@ public class QualityUtils {
             applyQuality(stack, blockQuality);
         } else if (blockQuality != Quality.PLAYER_PLACED) {
             // Naturally generated crops / fruits (which should never have any quality) or the block itself
-            applyQuality(stack, player, ServerConfig.MAX_NATURAL_HARVEST_QUALITY_LEVEL.get(), access);
+            applyQuality(stack, player, 0, ServerConfig::isNaturalHarvestQuality, access);
         }
     }
 
@@ -175,20 +200,31 @@ public class QualityUtils {
      * @param maxLevel  Quality types with a higher level than this will not be rolled for
      */
     public static void applyQuality(final ItemStack stack, @Nullable final Player player, double potential, int maxLevel, final RegistryAccess access) {
+        applyQuality(stack, player, potential, type -> QualityLevels.get(type) <= maxLevel, access);
+    }
+
+    /**
+     * Generic if no further context is present
+     * @param potential The potential (0 - 1) of the source (e.g. an animal), see {@link Modification#potential(double)}
+     * @param filter    Only quality types matching this will be rolled for
+     */
+    public static void applyQuality(final ItemStack stack, @Nullable final Player player, double potential, final Predicate<Holder<QualityType>> filter, final RegistryAccess access) {
         Holder<QualityType> selected = null;
+        Set<Identifier> allowed = FoodQualityRules.getAllowed(stack);
 
         for (Holder<QualityType> type : access.lookupOrThrow(QFComponents.QUALITY_TYPE_REGISTRY).listElements().toList()) {
-            if (selected != null && type.value().level() <= selected.value().level()) {
+            if (selected != null && QualityLevels.get(type) <= QualityLevels.get(selected)) {
                 continue;
             }
 
-            if (type.value().level() > maxLevel) {
+            if (!filter.test(type) || !FoodQualityRules.isAllowed(allowed, type)) {
                 continue;
             }
 
             double chance = type.value().chance();
             chance = Modification.luck(player).apply(chance);
             chance = Modification.potential(potential).apply(chance);
+            chance = QualityFoodAPI.fireQualityRoll(new QualityChanceModifier.Context(QualityChanceModifier.RollType.GENERIC, stack, type, player, null, null, potential), chance);
 
             if (chance > 0 && chance >= RANDOM.nextDouble()) {
                 selected = type;
@@ -224,11 +260,23 @@ public class QualityUtils {
             return false;
         }
 
-        if (!canUpgrade && QualityUtils.hasQuality(stack) || getQuality(stack).level() > quality.level()) {
+        QualityApplyEvent.Pre preEvent = new QualityApplyEvent.Pre(stack, quality, canUpgrade);
+        NeoForge.EVENT_BUS.post(preEvent);
+        if (preEvent.isCanceled()) {
             return false;
         }
 
-        stack.set(QFComponents.QUALITY_DATA_COMPONENT, quality);
+        Quality targetQuality = preEvent.getQuality();
+        if (!isValidQuality(targetQuality) || !FoodQualityRules.isAllowed(stack, targetQuality)) {
+            return false;
+        }
+
+        if (!canUpgrade && QualityUtils.hasQuality(stack) || getQuality(stack).level() > targetQuality.level()) {
+            return false;
+        }
+
+        stack.set(QFComponents.QUALITY_DATA_COMPONENT, targetQuality);
+        NeoForge.EVENT_BUS.post(new QualityApplyEvent.Post(stack, targetQuality, canUpgrade));
         return true;
     }
 

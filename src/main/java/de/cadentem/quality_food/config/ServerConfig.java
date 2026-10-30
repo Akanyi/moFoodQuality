@@ -1,7 +1,9 @@
 package de.cadentem.quality_food.config;
 
+import de.cadentem.quality_food.core.codecs.QualityType;
 import de.cadentem.quality_food.util.Utils;
 import de.cadentem.quality_food.QualityFood;
+import net.minecraft.core.Holder;
 import de.cadentem.quality_food.util.RecipeExtension;
 import de.cadentem.quality_food.util.StorageRecipeCache;
 import net.minecraft.core.RegistryAccess;
@@ -45,8 +47,8 @@ public class ServerConfig {
     public static final ModConfigSpec.DoubleValue CHILD_POTENTIAL_RANDOM_FACTOR_AMOUNT;
     public static final ModConfigSpec.DoubleValue CHILD_POTENTIAL_GROWTH_MULTIPLIER;
     public static final ModConfigSpec.IntValue ANIMAL_POTENTIAL_IMPACT;
-    public static final ModConfigSpec.IntValue MAX_NATURAL_HARVEST_QUALITY_LEVEL;
-    public static final ModConfigSpec.IntValue MAX_NATURAL_LOOT_QUALITY_LEVEL;
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> NATURAL_HARVEST_QUALITY_TYPES;
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> NATURAL_LOOT_QUALITY_TYPES;
 
     private static final ModConfigSpec.ConfigValue<List<? extends String>> FARMLAND_CONFIG_INTERNAL;
     private static final List<String> NO_QUALITY_RECIPES_DEFAULT = new ArrayList<>();
@@ -81,8 +83,8 @@ public class ServerConfig {
         BUILDER.pop();
 
         BUILDER.push("Balance");
-        MAX_NATURAL_HARVEST_QUALITY_LEVEL = BUILDER.comment("The maximum quality level naturally generated crops (i.e. not planted by a player) can drop").defineInRange("max_natural_harvest_quality_level", 3, 0, Integer.MAX_VALUE);
-        MAX_NATURAL_LOOT_QUALITY_LEVEL = BUILDER.comment("The maximum quality level naturally generated loot (e.g. chest loot) can have").defineInRange("max_natural_loot_quality_level", 3, 0, Integer.MAX_VALUE);
+        NATURAL_HARVEST_QUALITY_TYPES = BUILDER.comment("The quality types (namespace:path) naturally generated crops (i.e. not planted by a player) can drop").defineList("natural_harvest_quality_types", ServerConfig::defaultNaturalQualityTypes, () -> "<namespace>:<path>", ServerConfig::validateRecipe);
+        NATURAL_LOOT_QUALITY_TYPES = BUILDER.comment("The quality types (namespace:path) naturally generated loot (e.g. chest loot) can have").defineList("natural_loot_quality_types", ServerConfig::defaultNaturalQualityTypes, () -> "<namespace>:<path>", ServerConfig::validateRecipe);
         BUILDER.pop();
 
         SPEC = BUILDER.build();
@@ -165,6 +167,22 @@ public class ServerConfig {
         }
 
         return extension.quality_food$getStatus();
+    }
+
+    public static boolean isNaturalHarvestQuality(final Holder<QualityType> type) {
+        return isListed(NATURAL_HARVEST_QUALITY_TYPES.get(), type);
+    }
+
+    public static boolean isNaturalLootQuality(final Holder<QualityType> type) {
+        return isListed(NATURAL_LOOT_QUALITY_TYPES.get(), type);
+    }
+
+    private static boolean isListed(final List<? extends String> types, final Holder<QualityType> type) {
+        return type.unwrapKey().map(key -> types.contains(key.identifier().toString())).orElse(false);
+    }
+
+    private static List<String> defaultNaturalQualityTypes() {
+        return List.of(QualityFood.location("iron").toString(), QualityFood.location("gold").toString(), QualityFood.location("diamond").toString());
     }
 
     public static double getFarmlandMultiplier(final BlockState crop, final BlockState farmland) {

@@ -1,9 +1,14 @@
 {
   "potion.withProbability": "%s (%s)",
 
+  "quality_type.quality_food.wood": "Wood",
+  "quality_type.quality_food.stone": "Stone",
+  "quality_type.quality_food.copper": "Copper",
   "quality_type.quality_food.iron": "Iron",
   "quality_type.quality_food.gold": "Gold",
   "quality_type.quality_food.diamond": "Diamond",
+  "quality_type.quality_food.netherite": "Netherite",
+  "quality_type.quality_food.ender": "Ender",
 
   "config.jade.plugin_quality_food.quality_block": "Quality",
   "config.jade.plugin_quality_food.quality_mob": "Quality Potential",
@@ -18,6 +23,7 @@
   "commands.quality_food.quality.failed.already_has_quality": "%s already has a quality applied",
   "commands.quality_food.quality.failed.invalid_quality": "Tried to apply invalid quality",
   "commands.quality_food.quality.failed.missing_quality": "%s does not have any quality to remove",
+  "commands.quality_food.quality.failed.not_allowed": "%s cannot have %s quality",
 
   "quality_food.configuration.particles": "Particles",
   "quality_food.configuration.particles.tooltip": "Enable / Disable particles which indicate the stored quality level of certain blocks (e.g. furnace)",

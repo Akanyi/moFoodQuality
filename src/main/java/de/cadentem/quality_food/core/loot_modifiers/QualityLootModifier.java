@@ -72,7 +72,7 @@ public class QualityLootModifier extends LootModifier {
                 QualityUtils.applyHarvestQuality(stack, state, quality, playerReference, farmland, context.getLevel().registryAccess());
                 lastProcessedPosition = position;
             } else {
-                QualityUtils.applyQuality(stack, playerReference, ServerConfig.MAX_NATURAL_LOOT_QUALITY_LEVEL.get(), context.getLevel().registryAccess());
+                QualityUtils.applyQuality(stack, playerReference, 0, ServerConfig::isNaturalLootQuality, context.getLevel().registryAccess());
             }
         });
 

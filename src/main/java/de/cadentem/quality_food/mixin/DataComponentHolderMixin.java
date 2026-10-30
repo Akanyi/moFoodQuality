@@ -2,7 +2,9 @@ package de.cadentem.quality_food.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.sugar.Local;
+import de.cadentem.quality_food.api.QualityFoodAPI;
 import de.cadentem.quality_food.util.FoodUtils;
+import de.cadentem.quality_food.util.QualityUtils;
 import net.minecraft.core.component.DataComponentHolder;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
@@ -42,7 +44,7 @@ public interface DataComponentHolderMixin {
         }
 
         if (valueClass == ConsumableListener.class) {
-            return original.map(listener -> {
+            Stream<T> mapped = original.map(listener -> {
                 if (listener instanceof FoodProperties properties) {
                     //noinspection unchecked -> valid
                     return (T) FoodUtils.handleFoodProperties(stack, properties);
@@ -50,6 +52,14 @@ public interface DataComponentHolderMixin {
 
                 return listener;
             });
+
+            if (QualityUtils.hasQuality(stack)) {
+                //noinspection unchecked
+                ConsumableListener extraListener = QualityFoodAPI::onFoodConsumed;
+                return Stream.concat(mapped, Stream.of((T) extraListener));
+            }
+
+            return mapped;
         }
 
         return original;

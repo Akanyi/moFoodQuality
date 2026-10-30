@@ -4,6 +4,7 @@ import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import de.cadentem.quality_food.QualityFood;
+import de.cadentem.quality_food.util.QualityLevels;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
@@ -32,15 +33,16 @@ public record QualityType(
         double cropMultiplier,
         double seedMultiplier,
         double potentialBonus,
+        LevelSettings levelSettings,
         Optional<List<Effect>> effects,
         Identifier icon,
         Component name
 ) {
-    public static final QualityType NONE = new QualityType(0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, Optional.empty(), QualityFood.location("none"), Component.empty());
+    public static final QualityType NONE = new QualityType(0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, LevelSettings.DEFAULT, Optional.empty(), QualityFood.location("none"), Component.empty());
     private static final RandomSource RANDOM = RandomSource.create();
 
     public static final Codec<QualityType> CODEC = RecordCodecBuilder.create(builder -> builder.group(
-                    Codec.intRange(0, Integer.MAX_VALUE).fieldOf("level").forGetter(QualityType::level),
+                    Codec.INT.fieldOf("level").forGetter(QualityType::level),
                     Codec.doubleRange(0 ,1).fieldOf("chance").forGetter(QualityType::chance),
                     Codec.doubleRange(0, Double.MAX_VALUE).fieldOf("weight").forGetter(QualityType::weight),
                     Codec.doubleRange(0, Double.MAX_VALUE).fieldOf("min_weight").forGetter(QualityType::minWeight),
@@ -53,9 +55,12 @@ public record QualityType(
                     Codec.doubleRange(0, 100).optionalFieldOf("cooking_bonus", 0d).forGetter(QualityType::cookingBonus),
                     // TODO :: think about what fields could be grouped or sth. like that, max. amount of fields is 16 for the mc provided interface
                     Codec.mapPair(
-                            Codec.doubleRange(0, Double.MAX_VALUE).optionalFieldOf("crop_multiplier", 1d),
-                            Codec.doubleRange(0, Double.MAX_VALUE).optionalFieldOf("seed_multiplier", 1d)
-                    ).forGetter(type -> Pair.of(type.cropMultiplier(), type.seedMultiplier())),
+                            Codec.mapPair(
+                                    Codec.doubleRange(0, Double.MAX_VALUE).optionalFieldOf("crop_multiplier", 1d),
+                                    Codec.doubleRange(0, Double.MAX_VALUE).optionalFieldOf("seed_multiplier", 1d)
+                            ),
+                            LevelSettings.MAP_CODEC
+                    ).forGetter(type -> Pair.of(Pair.of(type.cropMultiplier(), type.seedMultiplier()), type.levelSettings())),
                     Codec.doubleRange(0, 1).optionalFieldOf("potential_bonus", 0d).forGetter(QualityType::potentialBonus),
                     Effect.CODEC.listOf().optionalFieldOf("effects").forGetter(QualityType::effects),
                     Identifier.CODEC.fieldOf("icon").forGetter(QualityType::icon),
@@ -74,13 +79,34 @@ public record QualityType(
             double saturationMultiplier,
             double craftingBonus,
             double cookingBonus,
-            final Pair<Double, Double> cropAndSeedMultiplier,
+            final Pair<Pair<Double, Double>, LevelSettings> cropSeedAndLevelSettings,
             double potentialBonus,
             final Optional<List<Effect>> effects,
             final Identifier icon,
             final Component name
     ) {
-        return new QualityType(level, chance, weight, minWeight, durationMultiplier, probabilityMultiplier, amplifierModifier, nutritionMultiplier, saturationMultiplier, craftingBonus, cookingBonus, cropAndSeedMultiplier.getFirst(), cropAndSeedMultiplier.getSecond(), potentialBonus, effects, icon, name);
+        Pair<Double, Double> cropAndSeedMultiplier = cropSeedAndLevelSettings.getFirst();
+        return new QualityType(level, chance, weight, minWeight, durationMultiplier, probabilityMultiplier, amplifierModifier, nutritionMultiplier, saturationMultiplier, craftingBonus, cookingBonus, cropAndSeedMultiplier.getFirst(), cropAndSeedMultiplier.getSecond(), potentialBonus, cropSeedAndLevelSettings.getSecond(), effects, icon, name);
+    }
+
+    /** The stored cooking bonus is divided by this value when rolling for this quality (defaults to {@code level * level} of the defined level) */
+    public double cookingBonusDivisor() {
+        return levelSettings.cookingBonusDivisor().orElseGet(() -> (double) Math.max(1, anchor() * anchor()));
+    }
+
+    /** Subtracted from the vanilla {@code 1 in 8} chance of an egg hatching (defaults to {@code level * 2} of the defined level) */
+    public int eggHatchBonus() {
+        return levelSettings.eggHatchBonus().orElse(anchor() * 2);
+    }
+
+    /** Subtracted from the vanilla {@code 1 in 32} chance of a hatching egg spawning 4 chicken (defaults to {@code level * 4} of the defined level) */
+    public int eggMultiHatchBonus() {
+        return levelSettings.eggMultiHatchBonus().orElse(anchor() * 4);
+    }
+
+    /** Defined levels below 1 only order the quality type below the others, they don't result in negative bonuses */
+    private int anchor() {
+        return Math.max(0, level);
     }
 
     /**
@@ -111,7 +137,7 @@ public record QualityType(
         Optional<ResourceKey<QualityType>> optional = holder.unwrapKey();
 
         if (optional.isPresent()) {
-            return new Quality(optional.get().identifier(), type.level(), Optional.ofNullable(effectsToApply));
+            return new Quality(optional.get().identifier(), QualityLevels.get(holder), Optional.ofNullable(effectsToApply));
         } else {
             return Quality.NONE;
         }

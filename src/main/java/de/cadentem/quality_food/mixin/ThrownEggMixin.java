@@ -1,6 +1,6 @@
 package de.cadentem.quality_food.mixin;
 
-import de.cadentem.quality_food.core.codecs.Quality;
+import de.cadentem.quality_food.core.codecs.QualityType;
 import de.cadentem.quality_food.util.QualityUtils;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrowableItemProjectile;
@@ -19,14 +19,10 @@ public abstract class ThrownEggMixin extends ThrowableItemProjectile {
 
     @ModifyConstant(method = "onHit", constant = @Constant(intValue = 8))
     private int quality_food$modifyBaseChance(int original) {
-        Quality quality = QualityUtils.getQuality(getItem());
+        QualityType type = QualityUtils.getType(getItem()).value();
 
-        if (quality == null) {
-            return original;
-        }
-
-        if (quality.level() > 0) {
-            return Math.max(1, original - (quality.level() * 2));
+        if (type != QualityType.NONE) {
+            return Math.max(1, original - type.eggHatchBonus());
         }
 
         return original;
@@ -34,14 +30,10 @@ public abstract class ThrownEggMixin extends ThrowableItemProjectile {
 
     @ModifyConstant(method = "onHit", constant = @Constant(intValue = 32))
     private int quality_food$modifyExtraChance(int original) {
-        Quality quality = QualityUtils.getQuality(getItem());
+        QualityType type = QualityUtils.getType(getItem()).value();
 
-        if (quality == null) {
-            return 0;
-        }
-
-        if (quality.level() > 0) {
-            return Math.max(1, original - (quality.level() * 4));
+        if (type != QualityType.NONE) {
+            return Math.max(1, original - type.eggMultiHatchBonus());
         }
 
         return original;

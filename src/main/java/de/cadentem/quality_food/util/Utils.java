@@ -1,10 +1,7 @@
 package de.cadentem.quality_food.util;
 
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.util.context.ContextMap;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.crafting.display.SlotDisplayContext;
+import de.cadentem.quality_food.api.QualityFoodAPI;
+import de.cadentem.quality_food.api.event.QualityValidCheckEvent;
 import de.cadentem.quality_food.core.attachments.AttachmentHandler;
 import de.cadentem.quality_food.core.attachments.BlockData;
 import de.cadentem.quality_food.core.attachments.LevelData;
@@ -16,12 +13,17 @@ import de.cadentem.quality_food.network.SyncCookingParticles;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.display.SlotDisplayContext;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -41,6 +43,7 @@ import java.util.function.Supplier;
 
 public class Utils {
     public static final ThreadLocal<Boolean> SKIP_ABSTRACT_FURNACE_REMOVE_QUALITY = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     public static List<ItemStack> getRecipeResults(final Recipe<?> recipe, final RegistryAccess access) {
         ContextMap context = new ContextMap.Builder()
                 .withParameter(SlotDisplayContext.REGISTRIES, access)
@@ -54,6 +57,13 @@ public class Utils {
 
     public static boolean isValidItem(final ItemStack stack, boolean checkBlock) {
         if (stack.isEmpty()) {
+            return false;
+        }
+
+        QualityValidCheckEvent.Result customResult = QualityFoodAPI.checkItemValid(stack, checkBlock);
+        if (customResult == QualityValidCheckEvent.Result.ALLOW) {
+            return true;
+        } else if (customResult == QualityValidCheckEvent.Result.DENY) {
             return false;
         }
 
@@ -80,6 +90,13 @@ public class Utils {
 
     @SuppressWarnings("deprecation")
     public static boolean isValidBlock(final Block block, boolean checkItem) {
+        QualityValidCheckEvent.Result customResult = QualityFoodAPI.checkBlockValid(block, checkItem);
+        if (customResult == QualityValidCheckEvent.Result.ALLOW) {
+            return true;
+        } else if (customResult == QualityValidCheckEvent.Result.DENY) {
+            return false;
+        }
+
         if (block.builtInRegistryHolder().is(QFBlockTags.QUALITY_BLOCKS)) {
             return true;
         }
@@ -180,7 +197,7 @@ public class Utils {
 
         int resultStackSize = result.getCount();
 
-        Set<Holder<QualityType>> qualities = new TreeSet<>(Comparator.comparingInt(quality -> quality.value().level()));
+        Set<Holder<QualityType>> qualities = new TreeSet<>(Comparator.comparingInt(quality -> QualityLevels.get(quality)));
         double qualityBonus = 0;
 
         for (ItemStack ingredient : ingredients) {

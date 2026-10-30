@@ -1,9 +1,13 @@
 package de.cadentem.quality_food.core.attachments;
 
+import de.cadentem.quality_food.api.QualityChanceModifier;
+import de.cadentem.quality_food.api.QualityFoodAPI;
+import de.cadentem.quality_food.core.FoodQualityRules;
 import de.cadentem.quality_food.core.Modification;
 import de.cadentem.quality_food.core.codecs.Quality;
 import de.cadentem.quality_food.core.codecs.QualityType;
 import de.cadentem.quality_food.registry.QFComponents;
+import de.cadentem.quality_food.util.QualityLevels;
 import de.cadentem.quality_food.util.QualityUtils;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
@@ -48,7 +52,7 @@ public class BlockData implements ValueIOSerializable {
 
         previewQuality = null;
 
-        Set<Holder<QualityType>> qualities = new TreeSet<>(Comparator.comparingInt(quality -> quality.value().level()));
+        Set<Holder<QualityType>> qualities = new TreeSet<>(Comparator.comparingInt(quality -> QualityLevels.get(quality)));
         double qualityBonus = 0;
 
         for (int i = 0; i < stack.getCount(); i++) {
@@ -70,16 +74,23 @@ public class BlockData implements ValueIOSerializable {
             QualityUtils.applyQuality(stack, selected);
         }
 
+        Set<Identifier> allowed = FoodQualityRules.getAllowed(stack);
+
         for (Holder<QualityType> type : level.registryAccess().lookupOrThrow(QFComponents.QUALITY_TYPE_REGISTRY).listElements().toList()) {
-            if (selected != null && type.value().level() <= selected.value().level()) {
+            if (selected != null && QualityLevels.get(type) <= QualityLevels.get(selected)) {
+                continue;
+            }
+
+            if (!FoodQualityRules.isAllowed(allowed, type)) {
                 continue;
             }
 
             double chance = level.getRandom().nextDouble();
             chance = Modification.luck(player).apply(chance);
-            chance = Modification.additive((float) finalBonus / (type.value().level() * type.value().level())).apply(chance);
+            chance = Modification.additive((float) (finalBonus / type.value().cookingBonusDivisor())).apply(chance);
+            double targetChance = QualityFoodAPI.fireQualityRoll(new QualityChanceModifier.Context(QualityChanceModifier.RollType.COOKING, stack, type, player, null, null, finalBonus), type.value().chance());
 
-            if (chance > 1 - type.value().chance()) {
+            if (targetChance > 0 && chance > 1 - targetChance) {
                 selected = type;
             }
         }
@@ -98,16 +109,22 @@ public class BlockData implements ValueIOSerializable {
             CookingEntry entry = cookingQueue.peek();
             Holder<QualityType> selected = entry != null ? entry.type() : null;
             double finalBonus = entry != null ? entry.bonus() : 0;
+            Set<Identifier> allowed = FoodQualityRules.getAllowed(stack);
 
             for (Holder<QualityType> type : level.registryAccess().lookupOrThrow(QFComponents.QUALITY_TYPE_REGISTRY).listElements().toList()) {
-                if (selected != null && type.value().level() <= selected.value().level()) {
+                if (selected != null && QualityLevels.get(type) <= QualityLevels.get(selected)) {
+                    continue;
+                }
+
+                if (!FoodQualityRules.isAllowed(allowed, type)) {
                     continue;
                 }
 
                 double chance = level.getRandom().nextDouble();
-                chance = Modification.additive((float) finalBonus / (type.value().level() * type.value().level())).apply(chance);
+                chance = Modification.additive((float) (finalBonus / type.value().cookingBonusDivisor())).apply(chance);
+                double targetChance = QualityFoodAPI.fireQualityRoll(new QualityChanceModifier.Context(QualityChanceModifier.RollType.COOKING, stack, type, null, null, null, finalBonus), type.value().chance());
 
-                if (chance > 1 - type.value().chance()) {
+                if (targetChance > 0 && chance > 1 - targetChance) {
                     selected = type;
                 }
             }

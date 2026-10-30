@@ -75,7 +75,7 @@ Quality Types are defined per datapack (`data/<namespace>/quality_food/quality_t
   }
 }
 ```
-- `level`: The level of the effect - higher level ones will be rolled first
+- `level`: The position of the quality type - higher level ones will be rolled first (can be `0` or negative to be placed below iron, see [Levels](#levels))
 - `chance`: Chance of this quality being applied
   - Value between `0` and `1` (1 being 100%)
 - `nutrition_multiplier`: The amount the nutrition will be multiplied by
@@ -92,6 +92,12 @@ Quality Types are defined per datapack (`data/<namespace>/quality_food/quality_t
   - Value between `0` and `1` (1 being 100%)
 - (Optional) `cooking_bonus`: The bonus each cooked item of this quality will provide for the stored bonus of the cooking block entity
   - Value between `0` and `1` (1 being 100%)
+- (Optional) `cooking_bonus_divisor`: The stored cooking bonus is divided by this value when the result rolls for this quality
+  - Needs to be greater than `0` - if not set it will be `level * level` (minimum `1`)
+- (Optional) `egg_hatch_bonus`: Subtracted from the vanilla `1 in 8` chance of a thrown egg (with this quality) spawning a chicken
+  - If not set it will be `level * 2`
+- (Optional) `egg_multi_hatch_bonus`: Subtracted from the vanilla `1 in 32` chance of a hatching egg spawning 4 chickens
+  - If not set it will be `level * 4`
 - (Optional) `effects`: List of effect configurations
   - (Optional) `applicable_to`: The item (or item tag) these effects will be applied to - if empty it will be applied to all items
   - `effects`: List of effects which will be applied
@@ -115,6 +121,55 @@ The actual quality data component which gets attached to items looks like this:
 }
 ```
 
+# API
+Quality types can also be defined in code through `QualityFoodAPI` (call it during mod construction or common setup):
+
+```java
+// Enable material presets (wood, stone, copper, netherite and ender are not registered by default)
+QualityFoodAPI.registerMaterialQualities(MaterialQuality.NETHERITE, MaterialQuality.ENDER);
+
+// Change the values of an API quality type (including the built-in iron, gold and diamond)
+QualityFoodAPI.modifyQualityType(MaterialQuality.GOLD.id(), builder -> builder.chance(0.05).nutritionMultiplier(2.25));
+
+// Register a new quality type
+QualityFoodAPI.registerQualityType(Identifier.fromNamespaceAndPath("examplemod", "ruby"), QualityTypeBuilder.create()
+        .level(6).chance(0.002).weight(3.5).minWeight(2.5)
+        .nutritionMultiplier(2.75).saturationMultiplier(1.9)
+        .icon(Identifier.fromNamespaceAndPath("examplemod", "quality_icon/ruby"))
+        .name(Component.translatable("quality_type.examplemod.ruby")));
+
+// Limit which quality types an item (or item tag) can get
+QualityFoodAPI.registerFoodQualities(Identifier.fromNamespaceAndPath("examplemod", "bread"), FoodQualities.of(Items.BREAD, MaterialQuality.WOOD.id(), MaterialQuality.STONE.id(), MaterialQuality.COPPER.id()));
+```
+
+- The API quality types (including iron, gold and diamond) and food quality rules are provided by the built-in data pack `quality_food/api` with the lowest priority, so a data pack file with the same id still overrides them
+- The material presets use fixed levels: wood `-2`, stone `-1`, copper `0`, iron `1`, gold `2`, diamond `3`, netherite `4`, ender `5`
+  - The values of a quality type never depend on which other quality types are registered, so enabling wood, stone or copper does not change iron, gold or diamond
+
+# Levels
+The `level` of a quality type only defines its position - the level of an item is the position of its quality type in the sequence of all registered quality types (starting at `1`)
+- Without additional quality types iron / gold / diamond are the levels `1` / `2` / `3`, with wood, stone and copper they become `4` / `5` / `6`
+- The level stored on items is re-calculated when they are loaded, so items from an existing world are moved up as well (and still stack with new ones)
+- Values which are derived from the level (see `cooking_bonus_divisor`, `egg_hatch_bonus` and `egg_multi_hatch_bonus`) use the defined `level` (values below `1` count as `0`), not the position
+
+# Food Qualities
+Defined per datapack (`data/<namespace>/quality_food/food_qualities/`) - limits the quality types the matching items can get:
+
+```json
+{
+  "items": ["minecraft:bread", "#c:foods/cooked_meat"],
+  "qualities": ["quality_food:wood", "quality_food:stone", "quality_food:copper"],
+  "priority": 0
+}
+```
+
+- `items`: Item ids or item tags (prefixed with `#`)
+- `qualities`: The quality types these items can get - a higher quality type which is not listed will not be rolled for (lower listed ones still can)
+- (Optional) `priority`: If multiple rules match an item the one with the highest priority is used (default `0`)
+- Items without a matching rule can get every quality type
+- Existing items keep their quality, the rules only apply when quality is applied (rolls, crafting, cooking, commands)
+  - Cooking uses the lowest ingredient quality as base - if the result is not allowed to have it, it can only be upgraded to a higher allowed quality
+
 # Commands
 - `/quality_food give`: Gives you an item with the defined quality (only lists item which are applicable to quality)
 - `/quality_food apply`: Applies a quality to an item
@@ -127,6 +182,10 @@ There is a farmland configuration which allows you to define a bonus (can also b
   - `#minecraft:crops` is the crop block (can be a tag or a single block)
   - `farmersdelight:rich_soil_farmland` is the farmland block (can be a tag or a single block)
   - `1.25` is the multiplier to be applied (needs to be positive - values below `1` will reduce the chance)
+
+Naturally generated crops (i.e. not planted by a player) and loot (e.g. chest loot) only roll for the quality types listed in the `Balance` section:
+- `natural_harvest_quality_types` / `natural_loot_quality_types`: both default to `["quality_food:iron", "quality_food:gold", "quality_food:diamond"]`
+- These replace `max_natural_harvest_quality_level` / `max_natural_loot_quality_level`
 
 ---
 

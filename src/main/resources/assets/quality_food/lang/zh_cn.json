@@ -3,9 +3,14 @@
 
   "quality_food.jade": "品质: %s",
 
+  "quality_type.quality_food.wood": "木",
+  "quality_type.quality_food.stone": "石",
+  "quality_type.quality_food.copper": "铜",
   "quality_type.quality_food.iron": "铁",
   "quality_type.quality_food.gold": "金",
   "quality_type.quality_food.diamond": "钻石",
+  "quality_type.quality_food.netherite": "下界合金",
+  "quality_type.quality_food.ender": "末影",
 
   "config.jade.plugin_quality_food.quality_block": "品质",
   "config.jade.plugin_quality_food.quality_mob": "品质潜力",
@@ -18,6 +23,7 @@
   "commands.quality_food.quality.failed.already_has_quality": "%s 已拥有品质",
   "commands.quality_food.quality.failed.invalid_quality": "尝试应用无效的品质",
   "commands.quality_food.quality.failed.missing_quality": "%s 没有任何品质可移除",
+  "commands.quality_food.quality.failed.not_allowed": "%s 不能拥有 %s 品质",
 
   "quality_food.configuration.particles": "粒子",
   "quality_food.configuration.particles.tooltip": "启用/禁用指示某些方块（如熔炉）存储品质等级的粒子",

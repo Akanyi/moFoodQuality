@@ -8,6 +8,8 @@ import de.cadentem.quality_food.QualityFood;
 import de.cadentem.quality_food.core.codecs.QualityType;
 import de.cadentem.quality_food.core.commands.QualityItemArgument;
 import de.cadentem.quality_food.core.commands.QualityTypeArgument;
+import de.cadentem.quality_food.core.FoodQualityRules;
+import de.cadentem.quality_food.util.QualityLevels;
 import de.cadentem.quality_food.util.QualityUtils;
 import de.cadentem.quality_food.util.Utils;
 import net.minecraft.commands.CommandBuildContext;
@@ -79,7 +81,7 @@ public class QFCommands {
     }
 
     private static int applyQuality(final CommandSourceStack source, final Holder<QualityType> type, boolean shouldOverride) {
-        if (type.value().level() <= 0) {
+        if (QualityLevels.get(type) <= 0) {
             source.sendFailure(Component.translatable("commands.quality_food.quality.failed.invalid_quality"));
             return 0;
         }
@@ -94,6 +96,11 @@ public class QFCommands {
 
             if (QualityUtils.hasQuality(stack) && !shouldOverride) {
                 source.sendFailure(Component.translatable("commands.quality_food.quality.failed.already_has_quality", stack.getDisplayName()));
+                return 0;
+            }
+
+            if (!FoodQualityRules.isAllowed(stack, type)) {
+                source.sendFailure(Component.translatable("commands.quality_food.quality.failed.not_allowed", stack.getDisplayName(), type.value().name()));
                 return 0;
             }
 
@@ -126,7 +133,7 @@ public class QFCommands {
 
     /** Mostly a copy from {@link net.minecraft.server.commands.GiveCommand} */
     private static int giveItem(final CommandSourceStack source, final ItemInput input, final Collection<ServerPlayer> players, int count, final Holder<QualityType> type) throws CommandSyntaxException {
-        if (type.value().level() <= 0) {
+        if (QualityLevels.get(type) <= 0) {
             source.sendFailure(Component.translatable("commands.quality_food.quality.failed.invalid_quality"));
             return 0;
         }
@@ -137,6 +144,11 @@ public class QFCommands {
 
         if (QualityUtils.isInvalidItem(tempStack)) {
             source.sendFailure(Component.translatable("commands.quality_food.quality.failed.no_quality", tempStack.getDisplayName()));
+            return 0;
+        }
+
+        if (!FoodQualityRules.isAllowed(tempStack, type)) {
+            source.sendFailure(Component.translatable("commands.quality_food.quality.failed.not_allowed", tempStack.getDisplayName(), type.value().name()));
             return 0;
         }
 
